@@ -4,6 +4,7 @@
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Kitchen Assistant</title>
 <!-- PWA -->
@@ -866,6 +867,8 @@ async function handleVoiceCommand(text) {
         if (data.type === 'music_like' && data.data?.track) likeTrackByAI(data.data.track);
         if (data.type === 'music_unlike' && data.data?.track) unlikeTrackByAI(data.data.track);
         if (data.type === 'timer') { refreshTimers(); switchTab('timers'); }
+        if (data.type === 'timer') { refreshTimers(); switchTab('timers'); }
+        if (data.type === 'timer') { refreshTimers(); switchTab('timers'); }
         doSpeak(data.response, true);
     } catch { removeTyping(typingId); const err = 'Sorry, couldn\'t connect.'; addChat(err, 'assistant'); doSpeak(err, true); }
 }
@@ -905,6 +908,8 @@ async function sendMessage() {
         if (data.type === 'music_play' && data.data?.track) playTrack(data.data.track);
         if (data.type === 'music_like' && data.data?.track) likeTrackByAI(data.data.track);
         if (data.type === 'music_unlike' && data.data?.track) unlikeTrackByAI(data.data.track);
+        if (data.type === 'timer') { refreshTimers(); switchTab('timers'); }
+        if (data.type === 'timer') { refreshTimers(); switchTab('timers'); }
         if (ttsEnabled && !voiceModeActive) doSpeak(data.response, false);
     } catch (err) { removeTyping(typingId); addChat('Sorry, couldn\'t connect to the server.', 'assistant'); }
 }
@@ -963,7 +968,7 @@ async function searchMusic() {
 
 function playTrack(track) {
     currentTrack = track; isPlaying = true;
-    player.src = `${API.replace('/api', '')}/api/music/stream/${track.video_id}`;
+    player.src = CONFIG.BACKEND_URL + '/api/music/stream/' + track.video_id;
     player.volume = voiceModeActive ? 0.2 : (document.getElementById('volumeSlider')?.value || 80) / 100;
     player.play().catch(e => console.error('Play error:', e));
     document.getElementById('nowPlayingCard').classList.remove('hidden');
