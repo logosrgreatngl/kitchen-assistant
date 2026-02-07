@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env
+
+# SSL certs
+*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Debug
+debug.py
+testmusic.py
+
+# Node
+node_modules/
+
+# Cache
+*.cache

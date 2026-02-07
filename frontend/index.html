@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Kitchen Assistant</title>
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#F59E0B">
+<link rel="apple-touch-icon" href="/icon-192.png">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#F59E0B",
+                        "background-light": "#F3F4F6",
+                        "background-dark": "#0F172A",
+                        "surface-dark": "#1E293B",
+                        "surface-light": "#FFFFFF",
+                    },
+                    fontFamily: { display: ["Inter", "sans-serif"] },
+                },
+            },
+        };
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet"/>
+    <style>
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none; height: 14px; width: 14px; border-radius: 50%;
+            background: #F59E0B; cursor: pointer; margin-top: -5px;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; border-radius: 2px; }
+        .dark input[type=range]::-webkit-slider-runnable-track { background: #334155; }
+        input[type=range]::-webkit-slider-runnable-track { background: #E2E8F0; }
+        .tab-content { display: none; }
+        .tab-content.active { display: flex; flex-direction: column; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); } 70% { box-shadow: 0 0 0 15px rgba(245,158,11,0); } 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); } }
+        .listening-pulse { animation: pulse-ring 1.5s infinite; }
+        .msg-user { background: #F59E0B; color: white; border-radius: 1.25rem 1.25rem 0.25rem 1.25rem; }
+        .msg-assistant { background: #F1F5F9; color: #1e293b; border-radius: 1.25rem 1.25rem 1.25rem 0.25rem; }
+        .dark .msg-assistant { background: #1E293B; color: #e2e8f0; }
+        .timer-circle { transition: stroke-dashoffset 1s linear; }
+        @keyframes pulse-outer { 0%,100% { transform: scale(1); opacity: 0.3; } 50% { transform: scale(1.8); opacity: 0; } }
+        @keyframes pulse-inner { 0%,100% { transform: scale(1); opacity: 0.4; } 50% { transform: scale(1.5); opacity: 0; } }
+        .voice-active #pulseRing1 { animation: pulse-outer 2s ease-in-out infinite; }
+        .voice-active #pulseRing2 { animation: pulse-inner 2s ease-in-out infinite 0.3s; }
+        @keyframes pulse-alert { from { transform: scale(1); } to { transform: scale(1.02); } }
+        .app-shell { display: flex; flex-direction: column; height: 100dvh; max-width: 28rem; width: 100%; position: relative; overflow: hidden; }
+        .bottom-nav { height: 5rem; flex-shrink: 0; }
+        .content-area { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen text-slate-800 dark:text-slate-100 flex justify-center">
+
+<div class="app-shell bg-white dark:bg-background-dark shadow-2xl sm:rounded-[2rem] sm:max-h-[90vh] sm:my-[5vh]">
+
+    <!-- STATUS BAR -->
+    <div class="px-6 pt-3 pb-1 flex justify-between items-center text-xs font-medium text-slate-400 dark:text-slate-500 flex-shrink-0">
+        <span id="clockDisplay">9:41</span>
+        <div class="flex gap-1.5">
+            <span class="material-symbols-rounded text-sm">signal_cellular_alt</span>
+            <span class="material-symbols-rounded text-sm">wifi</span>
+            <span class="material-symbols-rounded text-sm">battery_full</span>
+        </div>
+    </div>
+
+    <!-- CONTENT AREA -->
+    <div class="content-area">
+
+        <!-- ==================== TAB: HOME ==================== -->
+        <div id="tab-home" class="tab-content active flex-1 min-h-0">
+            <div class="px-6 py-3 flex-shrink-0">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-slate-400">Good <span id="greeting">morning</span> 👋</p>
+                        <h1 class="text-2xl font-bold dark:text-white text-slate-900 tracking-tight">Kitchen Assistant</h1>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span class="material-symbols-rounded text-primary">restaurant</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto no-scrollbar px-6 min-h-0" id="chatMessages">
+                <div id="welcomeMsg" class="flex flex-col items-center justify-center py-8 text-center">
+                    <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                        <span class="material-symbols-rounded text-primary text-3xl">restaurant</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">What's cooking?</h3>
+                    <p class="text-sm text-slate-400 mb-5 max-w-xs">Ask about recipes, cooking tips, or say "play music"</p>
+                    <div class="grid grid-cols-2 gap-2 w-full max-w-xs">
+                        <button onclick="sendQuick('Find me a chicken recipe')" class="px-3 py-2.5 rounded-2xl bg-slate-100 dark:bg-surface-dark text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-all border border-slate-200 dark:border-slate-700">🍗 Chicken Recipe</button>
+                        <button onclick="sendQuick('How do I cook rice?')" class="px-3 py-2.5 rounded-2xl bg-slate-100 dark:bg-surface-dark text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-all border border-slate-200 dark:border-slate-700">🍚 Cook Rice</button>
+                        <button onclick="sendQuick('Substitute for eggs')" class="px-3 py-2.5 rounded-2xl bg-slate-100 dark:bg-surface-dark text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-all border border-slate-200 dark:border-slate-700">🔄 Substitutes</button>
+                        <button onclick="sendQuick('Convert 2 cups to ml')" class="px-3 py-2.5 rounded-2xl bg-slate-100 dark:bg-surface-dark text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-all border border-slate-200 dark:border-slate-700">📐 Convert Units</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Chat Input - raised with mb-2 -->
+            <div class="px-6 py-3 mb-2 flex-shrink-0 bg-white dark:bg-background-dark">
+                <div class="flex gap-2 items-center">
+                    <div class="flex-1 relative">
+                        <input id="chatInput" type="text" placeholder="Ask anything..."
+                            class="w-full bg-slate-100 dark:bg-surface-dark border-none rounded-2xl py-3 px-4 pr-11 text-sm focus:ring-2 focus:ring-primary placeholder-slate-400 dark:text-white transition-all"
+                            onkeypress="if(event.key==='Enter')sendMessage()">
+                        <button onclick="sendMessage()" class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-primary rounded-full flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-transform">
+                            <span class="material-symbols-rounded text-base">arrow_upward</span>
+                        </button>
+                    </div>
+                    <button id="chatMicBtn" onclick="toggleChatMic()"
+                        class="w-11 h-11 rounded-full bg-slate-100 dark:bg-surface-dark flex items-center justify-center text-slate-500 hover:text-primary hover:bg-primary/10 transition-all flex-shrink-0 border border-slate-200 dark:border-slate-700">
+                        <span class="material-symbols-rounded text-xl">mic</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB: RECIPES ==================== -->
+        <div id="tab-recipes" class="tab-content flex-1 min-h-0">
+            <div class="px-6 py-3 flex-shrink-0">
+                <h1 class="text-2xl font-bold dark:text-white text-slate-900 tracking-tight mb-3">Recipes</h1>
+                <div class="relative">
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><span class="material-symbols-rounded">search</span></span>
+                    <input id="recipeSearch" type="text" placeholder="Search recipes or ingredients..."
+                        class="w-full bg-slate-100 dark:bg-surface-dark border-none rounded-2xl py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-primary placeholder-slate-400 dark:text-white transition-all"
+                        onkeypress="if(event.key==='Enter')searchRecipe()">
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto no-scrollbar px-6 pb-4 min-h-0" id="recipeResults">
+                <div class="flex flex-col items-center justify-center py-16 text-center">
+                    <span class="material-symbols-rounded text-6xl text-slate-200 dark:text-slate-700 mb-4">menu_book</span>
+                    <p class="text-slate-400 text-sm">Search for recipes by name or ingredients</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB: MUSIC ==================== -->
+        <div id="tab-music" class="tab-content flex-1 min-h-0">
+            <div class="px-6 py-3 flex-shrink-0">
+                <h1 class="text-2xl font-bold dark:text-white text-slate-900 tracking-tight mb-3">Music</h1>
+                <div class="relative">
+                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><span class="material-symbols-rounded">search</span></span>
+                    <input id="musicSearchInput" type="text" placeholder="Search songs, artists..."
+                        class="w-full bg-slate-100 dark:bg-surface-dark border-none rounded-2xl py-3 pl-12 pr-4 text-sm focus:ring-2 focus:ring-primary placeholder-slate-400 dark:text-white transition-all"
+                        onkeypress="if(event.key==='Enter')searchMusic()">
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto no-scrollbar pb-4 min-h-0">
+                <!-- Now Playing -->
+                <div id="nowPlayingCard" class="px-6 mb-4 hidden">
+                    <div class="bg-surface-light dark:bg-surface-dark rounded-3xl p-5 shadow-lg dark:shadow-none border border-slate-100 dark:border-slate-700/50 relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+                        <div class="flex gap-4 items-center mb-4">
+                            <div class="relative w-16 h-16 flex-shrink-0">
+                                <img id="npThumbnail" alt="Album Art" class="w-full h-full object-cover rounded-xl shadow-md" src="">
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h2 id="npTitle" class="text-base font-bold text-slate-900 dark:text-white truncate">No track</h2>
+                                <p id="npArtist" class="text-slate-500 dark:text-slate-400 text-sm truncate">Select a song</p>
+                            </div>
+                            <button id="likeBtn" onclick="toggleLike()" class="text-slate-300 dark:text-slate-600 hover:text-red-400 transition">
+                                <span class="material-symbols-rounded text-2xl" id="likeIcon">favorite</span>
+                            </button>
+                        </div>
+                        <div class="mb-3">
+                            <input id="progressSlider" class="w-full mb-1" max="100" min="0" type="range" value="0"/>
+                            <div class="flex justify-between text-xs text-slate-400 font-medium font-mono">
+                                <span id="currentTime">0:00</span>
+                                <span id="totalTime">0:00</span>
+                            </div>
+                        </div>
+                        <div class="flex justify-center items-center gap-5 mb-4">
+                            <button onclick="previousTrack()" class="text-slate-800 dark:text-white hover:text-primary transition">
+                                <span class="material-symbols-rounded text-2xl">skip_previous</span>
+                            </button>
+                            <button id="playPauseBtn" onclick="togglePlayPause()" class="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white shadow-lg shadow-primary/30 hover:scale-105 active:scale-95 transition-all">
+                                <span class="material-symbols-rounded text-2xl">play_arrow</span>
+                            </button>
+                            <button onclick="skipTrack()" class="text-slate-800 dark:text-white hover:text-primary transition">
+                                <span class="material-symbols-rounded text-2xl">skip_next</span>
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-rounded text-slate-400 text-sm">volume_down</span>
+                            <input id="volumeSlider" class="flex-1" max="100" min="0" type="range" value="80" oninput="setVolume(this.value)"/>
+                            <span class="material-symbols-rounded text-slate-400 text-sm">volume_up</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabs: Search / Recent / Liked -->
+                <div class="px-6 mb-3">
+                    <div class="flex gap-1 bg-slate-100 dark:bg-surface-dark rounded-2xl p-1">
+                        <button onclick="switchMusicTab('search')" id="mtab-search" class="music-tab flex-1 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm transition-all">Search</button>
+                        <button onclick="switchMusicTab('recent')" id="mtab-recent" class="music-tab flex-1 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-all">Recent</button>
+                        <button onclick="switchMusicTab('liked')" id="mtab-liked" class="music-tab flex-1 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-all">Liked</button>
+                    </div>
+                </div>
+
+                <!-- Search Results -->
+                <div class="px-6" id="musicResults">
+                    <div class="flex flex-col items-center justify-center py-12 text-center">
+                        <span class="material-symbols-rounded text-6xl text-slate-200 dark:text-slate-700 mb-4">music_note</span>
+                        <p class="text-slate-400 text-sm">Search for songs to play</p>
+                    </div>
+                </div>
+
+                <!-- Recent List -->
+                <div class="px-6 hidden" id="recentList">
+                    <div class="flex flex-col items-center justify-center py-12 text-center" id="recentEmpty">
+                        <span class="material-symbols-rounded text-6xl text-slate-200 dark:text-slate-700 mb-4">history</span>
+                        <p class="text-slate-400 text-sm">No recently played songs</p>
+                    </div>
+                    <div class="space-y-1" id="recentTracks"></div>
+                </div>
+
+                <!-- Liked List -->
+                <div class="px-6 hidden" id="likedList">
+                    <div class="flex flex-col items-center justify-center py-12 text-center" id="likedEmpty">
+                        <span class="material-symbols-rounded text-6xl text-slate-200 dark:text-slate-700 mb-4">favorite</span>
+                        <p class="text-slate-400 text-sm">No liked songs yet</p>
+                        <p class="text-slate-300 dark:text-slate-600 text-xs mt-1">Tap ♥ on a playing song to add it</p>
+                    </div>
+                    <div class="space-y-1" id="likedTracks"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB: TIMERS ==================== -->
+        <div id="tab-timers" class="tab-content flex-1 min-h-0">
+            <div class="px-6 py-3 flex-shrink-0">
+                <h1 class="text-2xl font-bold dark:text-white text-slate-900 tracking-tight mb-3">Timers</h1>
+                <div class="grid grid-cols-4 gap-2 mb-3">
+                    <button onclick="setTimer(60)" class="py-2.5 rounded-2xl bg-slate-100 dark:bg-surface-dark text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-all border border-slate-200 dark:border-slate-700">1m</button>
+                    <button onclick="setTimer(300)" class="py-2.5 rounded-2xl bg-slate-100 dark:bg-surface-dark text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-all border border-slate-200 dark:border-slate-700">5m</button>
+                    <button onclick="setTimer(600)" class="py-2.5 rounded-2xl bg-slate-100 dark:bg-surface-dark text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-all border border-slate-200 dark:border-slate-700">10m</button>
+                    <button onclick="setTimer(900)" class="py-2.5 rounded-2xl bg-slate-100 dark:bg-surface-dark text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-all border border-slate-200 dark:border-slate-700">15m</button>
+                </div>
+                <div class="flex gap-2">
+                    <input id="customTimerInput" type="text" placeholder="e.g. 7 minutes, 1h 30m..."
+                        class="flex-1 bg-slate-100 dark:bg-surface-dark border-none rounded-2xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary placeholder-slate-400 dark:text-white"
+                        onkeypress="if(event.key==='Enter')setCustomTimer()">
+                    <button onclick="setCustomTimer()" class="px-4 rounded-2xl bg-primary text-white text-sm font-medium hover:bg-amber-400 transition">Set</button>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto no-scrollbar px-6 pb-4 min-h-0" id="timersList">
+                <div class="flex flex-col items-center justify-center py-12 text-center">
+                    <span class="material-symbols-rounded text-6xl text-slate-200 dark:text-slate-700 mb-4">timer_off</span>
+                    <p class="text-slate-400 text-sm">No active timers</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB: SETTINGS ==================== -->
+        <div id="tab-settings" class="tab-content flex-1 min-h-0">
+            <div class="px-6 py-3 flex-shrink-0">
+                <h1 class="text-2xl font-bold dark:text-white text-slate-900 tracking-tight mb-3">Settings</h1>
+            </div>
+            <div class="flex-1 overflow-y-auto no-scrollbar px-6 pb-4 min-h-0">
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between p-4 rounded-2xl bg-slate-100 dark:bg-surface-dark border border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-rounded text-primary">dark_mode</span>
+                            <span class="text-sm font-medium">Dark Mode</span>
+                        </div>
+                        <button id="darkModeToggle" onclick="toggleDarkMode()" class="w-12 h-7 rounded-full bg-slate-300 relative transition-colors duration-300">
+                            <div id="toggleKnob" class="w-5 h-5 rounded-full bg-white absolute top-1 transition-all duration-300 shadow" style="left:4px;"></div>
+                        </button>
+                    </div>
+                    <div class="flex items-center justify-between p-4 rounded-2xl bg-slate-100 dark:bg-surface-dark border border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-rounded text-primary">record_voice_over</span>
+                            <div><span class="text-sm font-medium">AI Voice Replies</span><p class="text-xs text-slate-400">Speak responses in chat</p></div>
+                        </div>
+                        <button id="ttsToggle" onclick="toggleTTSSetting()" class="w-12 h-7 rounded-full bg-slate-300 relative transition-colors duration-300">
+                            <div id="ttsKnob" class="w-5 h-5 rounded-full bg-white absolute top-1 transition-all duration-300 shadow" style="left:4px;"></div>
+                        </button>
+                    </div>
+                    <div class="flex items-center justify-between p-4 rounded-2xl bg-slate-100 dark:bg-surface-dark border border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-rounded text-primary">dns</span>
+                            <div><span class="text-sm font-medium">Server Status</span><p id="serverStatus" class="text-xs text-slate-400">Checking...</p></div>
+                        </div>
+                        <div id="serverDot" class="w-3 h-3 rounded-full bg-slate-300"></div>
+                    </div>
+                    <div class="p-4 rounded-2xl bg-slate-100 dark:bg-surface-dark border border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="material-symbols-rounded text-primary">info</span>
+                            <span class="text-sm font-medium">About</span>
+                        </div>
+                        <p class="text-xs text-slate-400 ml-9">Kitchen Assistant v1.0<br>AI-powered cooking companion.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MINI PLAYER -->
+    <div id="miniPlayer" class="hidden flex-shrink-0 mx-4 mb-1 bg-surface-light dark:bg-surface-dark rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700/50 p-2.5 flex items-center gap-3" onclick="switchTab('music')">
+        <img id="miniThumb" class="w-10 h-10 rounded-lg object-cover" src="">
+        <div class="flex-1 min-w-0">
+            <p id="miniTitle" class="text-sm font-medium truncate dark:text-white">No track</p>
+            <p id="miniArtist" class="text-xs text-slate-400 truncate">Unknown</p>
+        </div>
+        <button onclick="event.stopPropagation();togglePlayPause()" class="w-9 h-9 bg-primary rounded-full flex items-center justify-center text-white flex-shrink-0">
+            <span id="miniPlayIcon" class="material-symbols-rounded text-lg">play_arrow</span>
+        </button>
+    </div>
+
+    <!-- BOTTOM NAV -->
+    <div class="bottom-nav flex-shrink-0 px-4 pb-3 pt-1 bg-white dark:bg-background-dark">
+        <div class="bg-surface-light dark:bg-surface-dark rounded-full shadow-xl border border-slate-100 dark:border-slate-700/50 px-3 py-2.5 flex justify-between items-center relative">
+            <button onclick="switchTab('home')" class="nav-btn flex flex-col items-center gap-0.5 px-2 text-primary transition" data-tab="home">
+                <span class="material-symbols-rounded text-xl">home</span><span class="text-[9px] font-medium">Home</span>
+            </button>
+            <button onclick="switchTab('recipes')" class="nav-btn flex flex-col items-center gap-0.5 px-2 text-slate-400 hover:text-primary transition" data-tab="recipes">
+                <span class="material-symbols-rounded text-xl">restaurant_menu</span><span class="text-[9px] font-medium">Recipes</span>
+            </button>
+            <div class="relative -top-4">
+                <button onclick="switchTab('music')" class="nav-btn w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white shadow-lg shadow-primary/40 ring-4 ring-white dark:ring-background-dark transform transition-transform hover:-translate-y-1" data-tab="music">
+                    <span class="material-symbols-rounded text-xl">music_note</span>
+                </button>
+            </div>
+            <button onclick="switchTab('timers')" class="nav-btn flex flex-col items-center gap-0.5 px-2 text-slate-400 hover:text-primary transition" data-tab="timers">
+                <span class="material-symbols-rounded text-xl">timer</span><span class="text-[9px] font-medium">Timers</span>
+            </button>
+            <button onclick="switchTab('settings')" class="nav-btn flex flex-col items-center gap-0.5 px-2 text-slate-400 hover:text-primary transition" data-tab="settings">
+                <span class="material-symbols-rounded text-xl">settings</span><span class="text-[9px] font-medium">Settings</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- VOICE OVERLAY -->
+<div id="voiceOverlay" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm">
+    <div id="voiceVisualizer" class="mb-8 relative">
+        <div id="pulseRing1" class="absolute inset-0 rounded-full bg-primary/20"></div>
+        <div id="pulseRing2" class="absolute inset-0 rounded-full bg-primary/10"></div>
+        <button onclick="stopVoiceMode()" class="relative w-28 h-28 bg-primary rounded-full flex items-center justify-center text-white shadow-2xl shadow-primary/50 z-10">
+            <span class="material-symbols-rounded text-5xl">mic</span>
+        </button>
+    </div>
+    <p id="voiceStatus" class="text-white text-lg font-medium mb-2">Listening...</p>
+    <p id="voiceTranscript" class="text-white/60 text-sm text-center px-8 max-w-xs min-h-[3rem]"></p>
+    <div id="aiSpeakingIndicator" class="hidden mt-4 flex items-center gap-2">
+        <div class="flex gap-1 items-end">
+            <div class="w-1 bg-primary rounded-full animate-bounce h-3" style="animation-delay:0ms"></div>
+            <div class="w-1 bg-primary rounded-full animate-bounce h-5" style="animation-delay:100ms"></div>
+            <div class="w-1 bg-primary rounded-full animate-bounce h-4" style="animation-delay:200ms"></div>
+            <div class="w-1 bg-primary rounded-full animate-bounce h-6" style="animation-delay:300ms"></div>
+            <div class="w-1 bg-primary rounded-full animate-bounce h-3" style="animation-delay:400ms"></div>
+        </div>
+        <span class="text-primary text-sm font-medium">AI Speaking...</span>
+    </div>
+    <button onclick="stopVoiceMode()" class="mt-8 px-6 py-2.5 rounded-full bg-white/10 text-white text-sm font-medium hover:bg-white/20 transition border border-white/20">
+        <span class="material-symbols-rounded text-sm align-middle mr-1">close</span> Stop Listening
+    </button>
+</div>
+
+<!-- FLOATING VOICE BUTTON -->
+<div class="fixed bottom-24 right-6 z-40" style="pointer-events:none;">
+    <div style="pointer-events:auto;float:right;">
+        <button id="voiceModeBtn" onclick="startVoiceMode()" class="w-13 h-13 p-3 rounded-full bg-primary text-white shadow-lg shadow-primary/30 flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
+            <span class="material-symbols-rounded text-2xl">mic</span>
+        </button>
+    </div>
+</div>
+
+<audio id="audioPlayer" preload="none"></audio>
+
+<script src="config.js"></script>
+<script>
+// ============================================
+// STATE
+// ============================================
+const API = typeof CONFIG !== 'undefined' ? CONFIG.API_BASE_URL : '/api';
+let currentTab = 'home';
+let currentMusicTab = 'search';
+let voiceModeActive = false;
+let recognition = null;
+let synthesis = window.speechSynthesis;
+let isPlaying = false;
+let currentTrack = null;
+let isSpeaking = false;
+let ttsEnabled = true;
+let alarmInterval = null;
+let expiredTimers = new Set();
+let audioCtx = null;
+let chatMicRecognition = null;
+let chatMicActive = false;
+const player = document.getElementById('audioPlayer');
+
+// Recently played & liked (persisted in localStorage)
+let recentlyPlayed = JSON.parse(localStorage.getItem('recentlyPlayed') || '[]');
+let likedSongs = JSON.parse(localStorage.getItem('likedSongs') || '[]');
+
+// ============================================
+// INIT
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    initSpeech(); initChatMic(); initDarkMode(); initTTSSetting();
+    updateClock(); setInterval(updateClock, 30000); updateGreeting();
+    checkServer(); setInterval(refreshTimers, 1000); initPlayerEvents();
+    renderRecentlyPlayed(); renderLikedSongs();
+});
+
+document.addEventListener('click', () => { getAudioContext(); }, { once: true });
+document.addEventListener('touchstart', () => { getAudioContext(); }, { once: true });
+
+function getAudioContext() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+}
+
+// ============================================
+// DARK MODE
+// ============================================
+function initDarkMode() {
+    const saved = localStorage.getItem('darkMode');
+    if (saved === 'true' || (saved === null && window.matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.classList.add('dark');
+    updateDarkModeToggle();
+}
+function toggleDarkMode() {
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem('darkMode', document.documentElement.classList.contains('dark'));
+    updateDarkModeToggle();
+}
+function updateDarkModeToggle() {
+    const isDark = document.documentElement.classList.contains('dark');
+    document.getElementById('darkModeToggle').classList.toggle('bg-primary', isDark);
+    document.getElementById('darkModeToggle').classList.toggle('bg-slate-300', !isDark);
+    document.getElementById('toggleKnob').style.left = isDark ? '26px' : '4px';
+}
+
+// ============================================
+// TTS
+// ============================================
+function initTTSSetting() {
+    const saved = localStorage.getItem('ttsEnabled');
+    ttsEnabled = saved === null ? true : saved === 'true';
+    updateTTSToggle();
+}
+function toggleTTSSetting() { ttsEnabled = !ttsEnabled; localStorage.setItem('ttsEnabled', ttsEnabled); updateTTSToggle(); }
+function updateTTSToggle() {
+    document.getElementById('ttsToggle').classList.toggle('bg-primary', ttsEnabled);
+    document.getElementById('ttsToggle').classList.toggle('bg-slate-300', !ttsEnabled);
+    document.getElementById('ttsKnob').style.left = ttsEnabled ? '26px' : '4px';
+}
+
+// ============================================
+// CLOCK
+// ============================================
+function updateClock() { document.getElementById('clockDisplay').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); }
+function updateGreeting() { const h = new Date().getHours(); document.getElementById('greeting').textContent = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'; }
+async function checkServer() {
+    try { const r = await fetch(`${API}/health`); if (r.ok) { document.getElementById('serverStatus').textContent = 'Connected'; document.getElementById('serverDot').className = 'w-3 h-3 rounded-full bg-green-400'; } }
+    catch { document.getElementById('serverStatus').textContent = 'Disconnected'; document.getElementById('serverDot').className = 'w-3 h-3 rounded-full bg-red-400'; }
+}
+
+// ============================================
+// NAVIGATION
+// ============================================
+function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.getElementById(`tab-${tab}`).classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(btn => { btn.classList.toggle('text-primary', btn.dataset.tab === tab); btn.classList.toggle('text-slate-400', btn.dataset.tab !== tab); });
+    updateMiniPlayer();
+}
+function updateMiniPlayer() {
+    const mini = document.getElementById('miniPlayer');
+    if (currentTrack && currentTab !== 'music') {
+        mini.classList.remove('hidden'); mini.classList.add('flex');
+        document.getElementById('miniTitle').textContent = currentTrack.title || 'Unknown';
+        document.getElementById('miniArtist').textContent = currentTrack.artist || 'Unknown';
+        document.getElementById('miniThumb').src = currentTrack.thumbnail || '';
+        document.getElementById('miniPlayIcon').textContent = isPlaying ? 'pause' : 'play_arrow';
+    } else { mini.classList.add('hidden'); mini.classList.remove('flex'); }
+}
+
+// ============================================
+// MUSIC TABS (Search / Recent / Liked)
+// ============================================
+function switchMusicTab(tab) {
+    currentMusicTab = tab;
+    document.querySelectorAll('.music-tab').forEach(b => { b.classList.remove('bg-white', 'dark:bg-slate-700', 'text-slate-900', 'dark:text-white', 'shadow-sm'); b.classList.add('text-slate-500'); });
+    const active = document.getElementById(`mtab-${tab}`);
+    active.classList.add('bg-white', 'dark:bg-slate-700', 'text-slate-900', 'dark:text-white', 'shadow-sm');
+    active.classList.remove('text-slate-500');
+    document.getElementById('musicResults').classList.toggle('hidden', tab !== 'search');
+    document.getElementById('recentList').classList.toggle('hidden', tab !== 'recent');
+    document.getElementById('likedList').classList.toggle('hidden', tab !== 'liked');
+}
+
+// ============================================
+// RECENTLY PLAYED
+// ============================================
+function addToRecentlyPlayed(track) {
+    recentlyPlayed = recentlyPlayed.filter(t => t.video_id !== track.video_id);
+    recentlyPlayed.unshift({ title: track.title, artist: track.artist, thumbnail: track.thumbnail, video_id: track.video_id, duration_str: track.duration_str });
+    if (recentlyPlayed.length > 30) recentlyPlayed = recentlyPlayed.slice(0, 30);
+    localStorage.setItem('recentlyPlayed', JSON.stringify(recentlyPlayed));
+    renderRecentlyPlayed();
+}
+
+function renderRecentlyPlayed() {
+    const container = document.getElementById('recentTracks');
+    const empty = document.getElementById('recentEmpty');
+    if (recentlyPlayed.length === 0) { empty.classList.remove('hidden'); container.innerHTML = ''; return; }
+    empty.classList.add('hidden');
+    container.innerHTML = recentlyPlayed.map((track, i) => `
+        <div class="flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group" onclick="playFromList('recent',${i})">
+            <span class="text-slate-400 font-mono text-sm w-5 text-center group-hover:hidden">${i + 1}</span>
+            <span class="material-symbols-rounded text-primary text-sm w-5 hidden group-hover:block">play_arrow</span>
+            <img alt="" class="w-10 h-10 rounded-lg object-cover bg-slate-200 dark:bg-slate-700" src="${track.thumbnail || ''}" onerror="this.style.display='none'">
+            <div class="flex-1 min-w-0">
+                <h4 class="text-slate-900 dark:text-white font-medium text-sm truncate">${track.title}</h4>
+                <p class="text-slate-500 text-xs truncate">${track.artist}</p>
+            </div>
+            <span class="text-slate-400 text-xs font-mono">${track.duration_str || ''}</span>
+        </div>`).join('');
+}
+
+function playFromList(type, index) {
+    const list = type === 'recent' ? recentlyPlayed : likedSongs;
+    if (list[index]) playTrack(list[index]);
+}
+
+// ============================================
+// LIKED SONGS
+// ============================================
+function toggleLike() {
+    if (!currentTrack) return;
+    const idx = likedSongs.findIndex(t => t.video_id === currentTrack.video_id);
+    if (idx >= 0) { likedSongs.splice(idx, 1); }
+    else { likedSongs.unshift({ title: currentTrack.title, artist: currentTrack.artist, thumbnail: currentTrack.thumbnail, video_id: currentTrack.video_id, duration_str: currentTrack.duration_str }); }
+    localStorage.setItem('likedSongs', JSON.stringify(likedSongs));
+    updateLikeButton(); renderLikedSongs();
+}
+
+function updateLikeButton() {
+    if (!currentTrack) return;
+    const isLiked = likedSongs.some(t => t.video_id === currentTrack.video_id);
+    const icon = document.getElementById('likeIcon');
+    const btn = document.getElementById('likeBtn');
+    if (isLiked) { icon.textContent = 'favorite'; btn.classList.add('text-red-400'); btn.classList.remove('text-slate-300', 'dark:text-slate-600'); }
+    else { icon.textContent = 'favorite'; btn.classList.remove('text-red-400'); btn.classList.add('text-slate-300', 'dark:text-slate-600'); }
+}
+
+function renderLikedSongs() {
+    const container = document.getElementById('likedTracks');
+    const empty = document.getElementById('likedEmpty');
+    if (likedSongs.length === 0) { empty.classList.remove('hidden'); container.innerHTML = ''; return; }
+    empty.classList.add('hidden');
+    container.innerHTML = likedSongs.map((track, i) => `
+        <div class="flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group" onclick="playFromList('liked',${i})">
+            <span class="text-slate-400 font-mono text-sm w-5 text-center group-hover:hidden">${i + 1}</span>
+            <span class="material-symbols-rounded text-primary text-sm w-5 hidden group-hover:block">play_arrow</span>
+            <img alt="" class="w-10 h-10 rounded-lg object-cover bg-slate-200 dark:bg-slate-700" src="${track.thumbnail || ''}" onerror="this.style.display='none'">
+            <div class="flex-1 min-w-0">
+                <h4 class="text-slate-900 dark:text-white font-medium text-sm truncate">${track.title}</h4>
+                <p class="text-slate-500 text-xs truncate">${track.artist}</p>
+            </div>
+            <button onclick="event.stopPropagation();removeLiked(${i})" class="text-red-300 hover:text-red-500 transition"><span class="material-symbols-rounded text-lg">close</span></button>
+        </div>`).join('');
+}
+function likeTrackByAI(track) {
+    const exists = likedSongs.some(t => t.video_id === track.video_id);
+    if (!exists) {
+        likedSongs.unshift({
+            title: track.title,
+            artist: track.artist,
+            thumbnail: track.thumbnail,
+            video_id: track.video_id,
+            duration_str: track.duration_str
+        });
+        localStorage.setItem('likedSongs', JSON.stringify(likedSongs));
+        renderLikedSongs();
+        updateLikeButton();
+    }
+}
+
+function unlikeTrackByAI(track) {
+    likedSongs = likedSongs.filter(t => t.video_id !== track.video_id);
+    localStorage.setItem('likedSongs', JSON.stringify(likedSongs));
+    renderLikedSongs();
+    updateLikeButton();
+}
+
+function removeLiked(index) {
+    likedSongs.splice(index, 1);
+    localStorage.setItem('likedSongs', JSON.stringify(likedSongs));
+    renderLikedSongs(); updateLikeButton();
+}
+
+// ============================================
+// SPEECH RECOGNITION
+// ============================================
+function initSpeech() {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SR(); recognition.continuous = true; recognition.interimResults = true; recognition.lang = 'en-US';
+        recognition.onresult = (e) => {
+            let interim = '', final = '';
+            for (let i = e.resultIndex; i < e.results.length; i++) { const t = e.results[i][0].transcript; if (e.results[i].isFinal) final += t; else interim += t; }
+            if (voiceModeActive) { document.getElementById('voiceTranscript').textContent = interim || final; if (final) handleVoiceCommand(final.trim()); }
+        };
+        recognition.onerror = (e) => { if (e.error === 'no-speech' && voiceModeActive) restartRecognition(); };
+        recognition.onend = () => { if (voiceModeActive && !isSpeaking) restartRecognition(); };
+    }
+    if (synthesis) { synthesis.getVoices(); speechSynthesis.onvoiceschanged = () => synthesis.getVoices(); }
+}
+function restartRecognition() { if (!voiceModeActive) return; setTimeout(() => { if (voiceModeActive && !isSpeaking) { try { recognition.start(); document.getElementById('voiceStatus').textContent = 'Listening...'; } catch {} } }, 300); }
+
+// ============================================
+// CHAT MIC
+// ============================================
+function initChatMic() {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        chatMicRecognition = new SR(); chatMicRecognition.continuous = false; chatMicRecognition.interimResults = true; chatMicRecognition.lang = 'en-US';
+        chatMicRecognition.onresult = (e) => { let t = ''; for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript; document.getElementById('chatInput').value = t; if (e.results[0].isFinal) { sendMessage(); stopChatMic(); } };
+        chatMicRecognition.onerror = () => stopChatMic(); chatMicRecognition.onend = () => stopChatMic();
+    }
+}
+function toggleChatMic() { if (voiceModeActive) return; chatMicActive ? stopChatMic() : startChatMic(); }
+function startChatMic() {
+    if (!chatMicRecognition) return; chatMicActive = true; try { chatMicRecognition.start(); } catch {}
+    const btn = document.getElementById('chatMicBtn'); btn.classList.add('listening-pulse','bg-primary/20','text-primary','border-primary'); btn.classList.remove('text-slate-500','border-slate-200','dark:border-slate-700');
+}
+function stopChatMic() {
+    chatMicActive = false; try { if (chatMicRecognition) chatMicRecognition.stop(); } catch {}
+    const btn = document.getElementById('chatMicBtn'); if (btn) { btn.classList.remove('listening-pulse','bg-primary/20','text-primary','border-primary'); btn.classList.add('text-slate-500','border-slate-200','dark:border-slate-700'); }
+}
+
+// ============================================
+// VOICE MODE
+// ============================================
+function startVoiceMode() {
+    if (!recognition) { alert('Speech recognition not supported. Try Chrome.'); return; }
+    voiceModeActive = true; document.getElementById('voiceOverlay').classList.remove('hidden'); document.getElementById('voiceOverlay').classList.add('voice-active');
+    document.getElementById('voiceStatus').textContent = 'Listening...'; document.getElementById('voiceTranscript').textContent = ''; document.getElementById('aiSpeakingIndicator').classList.add('hidden');
+    if (isPlaying) player.volume = 0.2; try { recognition.start(); } catch {}
+}
+function stopVoiceMode() {
+    voiceModeActive = false; document.getElementById('voiceOverlay').classList.add('hidden'); document.getElementById('voiceOverlay').classList.remove('voice-active');
+    const vol = document.getElementById('volumeSlider'); if (vol) player.volume = vol.value / 100;
+    synthesis.cancel(); isSpeaking = false; try { recognition.stop(); } catch {}
+}
+async function handleVoiceCommand(text) {
+    document.getElementById('voiceStatus').textContent = 'Processing...'; document.getElementById('voiceTranscript').textContent = `"${text}"`;
+    try { recognition.stop(); } catch {}
+    switchTab('home'); removeWelcome(); addChat(text, 'user'); const typingId = addTyping();
+    try {
+        const r = await fetch(`${API}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text }) });
+        const data = await r.json(); removeTyping(typingId); addChat(data.response, 'assistant');
+        if (data.type === 'music_play' && data.data?.track) playTrack(data.data.track);
+        if (data.type === 'music_like' && data.data?.track) likeTrackByAI(data.data.track);
+        if (data.type === 'music_unlike' && data.data?.track) unlikeTrackByAI(data.data.track);
+        doSpeak(data.response, true);
+    } catch { removeTyping(typingId); const err = 'Sorry, couldn\'t connect.'; addChat(err, 'assistant'); doSpeak(err, true); }
+}
+
+// ============================================
+// TTS
+// ============================================
+function doSpeak(text, isVoiceMode) {
+    try { if (recognition && voiceModeActive) recognition.stop(); } catch {} isSpeaking = true;
+    if (isVoiceMode) { document.getElementById('voiceStatus').textContent = 'Speaking...'; document.getElementById('aiSpeakingIndicator').classList.remove('hidden'); }
+    synthesis.cancel();
+    const clean = text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}]/gu,'').replace(/[⏲️🎵📻🔇⏭️📭🍗🍚🔄📐🔔]/g,'').trim();
+    if (!clean) { finishSpeaking(isVoiceMode); return; }
+    const u = new SpeechSynthesisUtterance(clean); u.rate = 1; u.pitch = 1; u.volume = 1;
+    const voices = synthesis.getVoices();
+    const pref = voices.find(v => v.name.includes('Google') && v.lang.startsWith('en')) || voices.find(v => v.lang.startsWith('en-US')) || voices.find(v => v.lang.startsWith('en'));
+    if (pref) u.voice = pref;
+    u.onend = () => finishSpeaking(isVoiceMode); u.onerror = () => finishSpeaking(isVoiceMode);
+    if (isPlaying) player.volume = 0.1; synthesis.speak(u);
+}
+function finishSpeaking(isVoiceMode) {
+    isSpeaking = false;
+    if (isVoiceMode || voiceModeActive) { document.getElementById('aiSpeakingIndicator').classList.add('hidden'); if (isPlaying) player.volume = 0.2; if (voiceModeActive) { document.getElementById('voiceStatus').textContent = 'Listening...'; document.getElementById('voiceTranscript').textContent = ''; restartRecognition(); } }
+    else { const vol = document.getElementById('volumeSlider'); if (vol && isPlaying) player.volume = vol.value / 100; }
+}
+
+// ============================================
+// CHAT
+// ============================================
+function sendQuick(msg) { document.getElementById('chatInput').value = msg; sendMessage(); }
+async function sendMessage() {
+    const input = document.getElementById('chatInput'); const message = input.value.trim(); if (!message) return;
+    removeWelcome(); addChat(message, 'user'); input.value = ''; const typingId = addTyping();
+    try {
+        const r = await fetch(`${API}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) });
+        const data = await r.json(); removeTyping(typingId); addChat(data.response, 'assistant');
+        if (data.type === 'music_play' && data.data?.track) playTrack(data.data.track);
+        if (data.type === 'music_like' && data.data?.track) likeTrackByAI(data.data.track);
+        if (data.type === 'music_unlike' && data.data?.track) unlikeTrackByAI(data.data.track);
+        if (ttsEnabled && !voiceModeActive) doSpeak(data.response, false);
+    } catch (err) { removeTyping(typingId); addChat('Sorry, couldn\'t connect to the server.', 'assistant'); }
+}
+function removeWelcome() { const w = document.getElementById('welcomeMsg'); if (w) w.remove(); }
+function addChat(text, sender) {
+    const c = document.getElementById('chatMessages'); const w = document.createElement('div');
+    w.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'} mb-3`;
+    const b = document.createElement('div'); b.className = `max-w-[80%] px-4 py-3 text-sm leading-relaxed ${sender === 'user' ? 'msg-user' : 'msg-assistant'}`;
+    b.textContent = text; w.appendChild(b); c.appendChild(w); c.scrollTop = c.scrollHeight;
+}
+function addTyping() {
+    const c = document.getElementById('chatMessages'); const id = 'typing-' + Date.now(); const w = document.createElement('div');
+    w.className = 'flex justify-start mb-3'; w.id = id;
+    w.innerHTML = `<div class="msg-assistant px-4 py-3 flex gap-1.5 items-center"><div class="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style="animation-delay:0ms"></div><div class="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style="animation-delay:150ms"></div><div class="w-2 h-2 rounded-full bg-slate-400 animate-bounce" style="animation-delay:300ms"></div></div>`;
+    c.appendChild(w); c.scrollTop = c.scrollHeight; return id;
+}
+function removeTyping(id) { const el = document.getElementById(id); if (el) el.remove(); }
+
+// ============================================
+// RECIPES
+// ============================================
+async function searchRecipe() {
+    const query = document.getElementById('recipeSearch').value.trim(); if (!query) return;
+    const c = document.getElementById('recipeResults');
+    c.innerHTML = `<div class="flex justify-center py-12"><div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>`;
+    try {
+        const r = await fetch(`${API}/recipe`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ingredients: query }) });
+        const data = await r.json();
+        c.innerHTML = `<div class="p-5 rounded-2xl bg-slate-50 dark:bg-surface-dark border border-slate-200 dark:border-slate-700"><div class="flex items-center gap-2 mb-3"><span class="material-symbols-rounded text-primary">menu_book</span><h3 class="font-bold text-slate-900 dark:text-white">Results for "${query}"</h3></div><div class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">${data.response}</div></div>`;
+    } catch { c.innerHTML = `<div class="text-center py-8"><span class="material-symbols-rounded text-4xl text-red-300 mb-2">error</span><p class="text-sm text-slate-400">Failed to search</p></div>`; }
+}
+
+// ============================================
+// MUSIC
+// ============================================
+async function searchMusic() {
+    const query = document.getElementById('musicSearchInput').value.trim(); if (!query) return;
+    switchMusicTab('search');
+    const c = document.getElementById('musicResults');
+    c.innerHTML = `<div class="flex justify-center py-12"><div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>`;
+    try {
+        const r = await fetch(`${API}/music/search`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query, max_results: 8 }) });
+        const data = await r.json();
+        if (data.tracks?.length > 0) {
+            c.innerHTML = `<h3 class="font-bold text-slate-900 dark:text-white text-lg mb-3">Results</h3><div class="space-y-1" id="trackList"></div>`;
+            const list = document.getElementById('trackList');
+            data.tracks.forEach((track, i) => {
+                const div = document.createElement('div'); div.className = 'flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group';
+                div.onclick = () => playTrack(track);
+                div.innerHTML = `<span class="text-slate-400 font-mono text-sm w-5 text-center group-hover:hidden">${i+1}</span><span class="material-symbols-rounded text-primary text-sm w-5 hidden group-hover:block">play_arrow</span><img alt="" class="w-12 h-12 rounded-lg object-cover bg-slate-200 dark:bg-slate-700" src="${track.thumbnail||''}" onerror="this.style.display='none'"><div class="flex-1 min-w-0"><h4 class="text-slate-900 dark:text-white font-medium text-sm truncate">${track.title}</h4><p class="text-slate-500 text-xs truncate">${track.artist}</p></div><span class="text-slate-400 text-xs font-mono">${track.duration_str}</span>`;
+                list.appendChild(div);
+            });
+        } else { c.innerHTML = `<div class="text-center py-8"><span class="material-symbols-rounded text-4xl text-slate-300 dark:text-slate-600 mb-2">music_off</span><p class="text-sm text-slate-400">No results</p></div>`; }
+    } catch { c.innerHTML = `<div class="text-center py-8"><span class="material-symbols-rounded text-4xl text-red-300 mb-2">error</span><p class="text-sm text-slate-400">Failed to search</p></div>`; }
+}
+
+function playTrack(track) {
+    currentTrack = track; isPlaying = true;
+    player.src = `${API.replace('/api', '')}/api/music/stream/${track.video_id}`;
+    player.volume = voiceModeActive ? 0.2 : (document.getElementById('volumeSlider')?.value || 80) / 100;
+    player.play().catch(e => console.error('Play error:', e));
+    document.getElementById('nowPlayingCard').classList.remove('hidden');
+    document.getElementById('npTitle').textContent = track.title || 'Unknown';
+    document.getElementById('npArtist').textContent = track.artist || 'Unknown';
+    document.getElementById('npThumbnail').src = track.thumbnail || '';
+    document.getElementById('totalTime').textContent = track.duration_str || '0:00';
+    updatePlayPauseUI(); updateMiniPlayer(); updateLikeButton();
+    addToRecentlyPlayed(track);
+}
+
+function initPlayerEvents() {
+    player.addEventListener('timeupdate', () => { if (player.duration) { document.getElementById('progressSlider').value = (player.currentTime / player.duration) * 100; document.getElementById('currentTime').textContent = formatTime(player.currentTime); } });
+    player.addEventListener('ended', () => skipTrack());
+    document.getElementById('progressSlider').addEventListener('input', (e) => { if (player.duration) player.currentTime = (e.target.value / 100) * player.duration; });
+    player.volume = 0.8;
+}
+function togglePlayPause() { if (!currentTrack) return; if (isPlaying) { player.pause(); isPlaying = false; } else { player.play(); isPlaying = true; } updatePlayPauseUI(); updateMiniPlayer(); }
+function updatePlayPauseUI() { document.getElementById('playPauseBtn').querySelector('.material-symbols-rounded').textContent = isPlaying ? 'pause' : 'play_arrow'; }
+function setVolume(val) { player.volume = val / 100; }
+async function skipTrack() { try { const r = await fetch(`${API}/music/skip`, { method: 'POST' }); const data = await r.json(); if (data.status === 'playing' && data.track) playTrack(data.track); else stopMusic(); } catch { stopMusic(); } }
+function previousTrack() { if (player.currentTime > 3) player.currentTime = 0; }
+function stopMusic() { player.pause(); player.src = ''; isPlaying = false; currentTrack = null; document.getElementById('nowPlayingCard').classList.add('hidden'); updateMiniPlayer(); fetch(`${API}/music/stop`, { method: 'POST' }).catch(() => {}); }
+function formatTime(s) { if (!s || isNaN(s)) return '0:00'; return `${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`; }
+
+// ============================================
+// TIMER ALARM
+// ============================================
+function createAlarmSound() {
+    const ctx = getAudioContext();
+    function beep(freq, st, dur) { const o = ctx.createOscillator(); const g = ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.value = freq; o.type = 'square'; g.gain.setValueAtTime(0.4, st); g.gain.exponentialRampToValueAtTime(0.01, st + dur); o.start(st); o.stop(st + dur); }
+    const now = ctx.currentTime;
+    for (let s = 0; s < 3; s++) { for (let i = 0; i < 5; i++) { const t = now + (s*0.7) + (i*0.12); beep(880, t, 0.1); beep(1200, t+0.05, 0.08); } }
+}
+function playTimerAlarm(label) {
+    let count = 0;
+    function ring() { if (count >= 5) { if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; } return; } try { createAlarmSound(); } catch {} count++; }
+    ring(); alarmInterval = setInterval(ring, 2000);
+    if ('Notification' in window && Notification.permission === 'granted') new Notification('Timer Done!', { body: `${label} is complete!` });
+    else if ('Notification' in window && Notification.permission !== 'denied') Notification.requestPermission().then(p => { if (p === 'granted') new Notification('Timer Done!', { body: `${label} is complete!` }); });
+    if ('vibrate' in navigator) navigator.vibrate([500, 200, 500, 200, 500]);
+    switchTab('home'); addChat(`🔔 TIMER DONE! "${label}" is complete!`, 'assistant');
+    if (ttsEnabled || voiceModeActive) setTimeout(() => { doSpeak(`Timer done! ${label} is complete!`, voiceModeActive); }, 3000);
+    showTimerAlert(label);
+}
+function showTimerAlert(label) {
+    const existing = document.getElementById('timerAlert'); if (existing) existing.remove();
+    const el = document.createElement('div'); el.id = 'timerAlert'; el.className = 'fixed top-4 left-4 right-4 z-[60] max-w-md mx-auto';
+    el.innerHTML = `<div class="bg-red-500 rounded-2xl p-4 shadow-2xl shadow-red-500/30 flex items-center gap-4" style="animation:pulse-alert 0.5s ease-in-out infinite alternate;"><div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0"><span class="material-symbols-rounded text-white text-2xl">alarm</span></div><div class="flex-1 min-w-0"><h4 class="text-white font-bold text-sm">🔔 Timer Done!</h4><p class="text-white/80 text-xs truncate">${label} is complete</p></div><button onclick="dismissTimerAlert()" class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition flex-shrink-0"><span class="material-symbols-rounded">close</span></button></div>`;
+    document.body.appendChild(el); setTimeout(() => dismissTimerAlert(), 15000);
+}
+function dismissTimerAlert() { const el = document.getElementById('timerAlert'); if (el) el.remove(); if (alarmInterval) { clearInterval(alarmInterval); alarmInterval = null; } }
+
+// ============================================
+// TIMERS
+// ============================================
+async function setTimer(seconds) {
+    try { const r = await fetch(`${API}/timer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration: `${Math.floor(seconds/60)}m` }) }); const data = await r.json(); if (currentTab === 'home') addChat(`⏲️ ${data.response}`, 'assistant'); refreshTimers(); if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch (e) { console.error(e); }
+}
+async function setCustomTimer() {
+    const input = document.getElementById('customTimerInput'); const val = input.value.trim(); if (!val) return;
+    try { await fetch(`${API}/timer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ duration: val }) }); input.value = ''; refreshTimers(); if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch (e) { console.error(e); }
+}
+async function refreshTimers() {
+    try {
+        const r = await fetch(`${API}/timers`); const data = await r.json(); const c = document.getElementById('timersList');
+        const timers = data.timers || []; const active = timers.filter(t => t.active);
+        timers.forEach(t => { if (t.active && t.remaining <= 0 && !expiredTimers.has(t.id)) { expiredTimers.add(t.id); playTimerAlarm(t.label); } });
+        if (active.length === 0) { c.innerHTML = `<div class="flex flex-col items-center justify-center py-12 text-center"><span class="material-symbols-rounded text-6xl text-slate-200 dark:text-slate-700 mb-4">timer_off</span><p class="text-slate-400 text-sm">No active timers</p></div>`; return; }
+        const circ = 2 * Math.PI * 20;
+        c.innerHTML = active.map(t => {
+            const mins = Math.floor(t.remaining/60); const secs = t.remaining%60; const ts = `${mins}:${secs.toString().padStart(2,'0')}`;
+            const pct = t.total ? ((t.remaining/t.total)*100) : 50; const urg = t.remaining <= 10 && t.remaining > 0;
+            return `<div class="flex items-center gap-4 p-4 mb-3 rounded-2xl ${urg?'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800':'bg-slate-50 dark:bg-surface-dark border-slate-200 dark:border-slate-700'} border transition-colors"><div class="relative w-14 h-14 flex-shrink-0"><svg class="w-14 h-14 -rotate-90" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" stroke-width="3" class="stroke-slate-200 dark:stroke-slate-700"/><circle cx="24" cy="24" r="20" fill="none" stroke="${urg?'#EF4444':'#F59E0B'}" stroke-width="3" stroke-dasharray="${circ}" stroke-dashoffset="${circ*(1-pct/100)}" stroke-linecap="round" class="timer-circle"/></svg><span class="absolute inset-0 flex items-center justify-center text-xs font-bold ${urg?'text-red-500':'text-primary'}">${ts}</span></div><div class="flex-1 min-w-0"><h4 class="text-sm font-semibold text-slate-900 dark:text-white">${t.label}</h4><p class="text-xs ${urg?'text-red-400':'text-slate-400'}">${urg?'⚠️ Almost done!':ts+' remaining'}</p></div><button onclick="cancelTimer(${t.id})" class="w-8 h-8 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition"><span class="material-symbols-rounded text-lg">close</span></button></div>`;
+        }).join('');
+    } catch {}
+}
+async function cancelTimer(id) { try { await fetch(`${API}/timer/${id}`, { method: 'DELETE' }); expiredTimers.delete(id); dismissTimerAlert(); refreshTimers(); } catch {} }
+// ============================================
+// PWA SERVICE WORKER
+// ============================================
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW error:', err));
+}
+</script>
+</body>
+</html>
