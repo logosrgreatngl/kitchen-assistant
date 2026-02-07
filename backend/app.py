@@ -9,14 +9,15 @@ from config import Config
 
 app = Flask(__name__)
 
-# CORS - allow Netlify frontend
+# Update CORS to allow the ngrok header
 CORS(app, resources={
     r"/api/*": {
         "origins": Config.ALLOWED_ORIGINS.split(",") if Config.ALLOWED_ORIGINS != '*' else '*',
         "methods": ["GET", "POST", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type"],
+        "allow_headers": ["Content-Type", "ngrok-skip-browser-warning"],  # Added this!
     }
 })
+
 
 # Initialize services
 print("🔧 Initializing services...")
