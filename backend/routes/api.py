@@ -1,6 +1,7 @@
 """
 API Routes — Chat, Recipes, Timers, Music
 """
+import re
 from flask import Blueprint, request, jsonify, Response
 from datetime import datetime
 import requests as http_requests
@@ -332,8 +333,8 @@ def process_message(message):
             }
         return {'text': "No song is currently playing.", 'type': 'error'}
 
-    # Timer
-    if 'timer' in msg or 'alarm' in msg:
+        # Timer
+    if any(w in msg for w in ['timer', 'alarm', 'remind', 'countdown', 'set a', 'set for']):
         label, secs = timer_service.parse_duration(msg)
         if label:
             txt = timer_service.set_timer(label, secs)
@@ -342,10 +343,23 @@ def process_message(message):
                 'type': 'timer',
                 'data': {'label': label, 'seconds': secs},
             }
+        # If no duration found, ask AI but still mark as timer
         return {
-            'text': "Couldn't parse duration. Try: 'set timer 10 minutes'",
+            'text': "I couldn't understand the duration. Try saying 'set timer 5 minutes' or 'timer 30 seconds'.",
             'type': 'error',
         }
+
+    # Direct time mentions like "10 minutes", "5 seconds" (without timer keyword)
+    time_match = re.search(r'(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)', msg)
+    if time_match and any(w in msg for w in ['set', 'start', 'count', 'put']):
+        label, secs = timer_service.parse_duration(msg)
+        if label:
+            txt = timer_service.set_timer(label, secs)
+            return {
+                'text': f"⏲️ {txt}",
+                'type': 'timer',
+                'data': {'label': label, 'seconds': secs},
+            }
 
     # Recipe
     if any(w in msg for w in ['recipe', 'cook with', 'make with']):
