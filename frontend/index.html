@@ -768,7 +768,7 @@ async function searchMusic() {
 
 function playTrack(track) {
     currentTrack = track; isPlaying = true;
-    player.src = `${API.replace('/api', '')}/api/music/stream/${track.video_id}`;
+    player.src = `${CONFIG.BACKEND_URL}/api/music/stream/${track.video_id}`;
     player.volume = voiceModeActive ? 0.2 : (document.getElementById('volumeSlider')?.value || 80) / 100;
     player.play().catch(e => console.error('Play error:', e));
     document.getElementById('nowPlayingCard').classList.remove('hidden');
