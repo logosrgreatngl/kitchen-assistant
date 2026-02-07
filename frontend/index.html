@@ -1080,7 +1080,9 @@ async function setCustomTimer() {
 }
 async function refreshTimers() {
     try {
-        const r = await fetch(`${API}/timers`); const data = await r.json(); const c = document.getElementById('timersList');
+        const r = await fetch(`${API}/timers`, {
+    headers: { "ngrok-skip-browser-warning": "true" }
+}); const data = await r.json(); const c = document.getElementById('timersList');
         const timers = data.timers || []; const active = timers.filter(t => t.active);
         timers.forEach(t => { if (t.active && t.remaining <= 0 && !expiredTimers.has(t.id)) { expiredTimers.add(t.id); playTimerAlarm(t.label); } });
         if (active.length === 0) { c.innerHTML = `<div class="flex flex-col items-center justify-center py-12 text-center"><span class="material-symbols-rounded text-6xl text-slate-200 dark:text-slate-700 mb-4">timer_off</span><p class="text-slate-400 text-sm">No active timers</p></div>`; return; }
