@@ -1,5 +1,5 @@
 const CONFIG = {
-    BACKEND_URL: 'https://unavailable-bacteria-missed-robert.trycloudflare.com',
+    BACKEND_URL: 'https://446a-39-40-171-22.ngrok-free.app/',
     TIMER_UPDATE_INTERVAL: 1000,
     FEATURES: { voice: true, music: true, timers: true, search: true }
 };
